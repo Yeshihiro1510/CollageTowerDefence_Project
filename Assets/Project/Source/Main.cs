@@ -1,58 +1,74 @@
+using System;
 using System.Collections;
 using UnityEngine;
-
-public static class Scenes
-{
-    public const string MAIN = "Main";
-}
+using UnityEngine.Events;
+using UnityEngine.Splines;
+using UnityEngine.UI;
 
 public class Main : MonoBehaviour
 {
     [SerializeField] private UI _UI;
+    [SerializeField] private Spline _line;
 
-    private TimersSystem _timersService;
-    private ResourcesSystem _resourcesService;
+    private readonly ResourcesSystem _resourcesService = new ResourcesSystem();
+    private readonly TimersSystem _timersService = new TimersSystem();
 
-    private bool _isPaused;
-    private bool _isGameEnded;
-
-    private void Awake()
-    {
-        _resourcesService = new ResourcesSystem();
-        _timersService = new TimersSystem();
-    }
+    private bool _paused = false;
 
     private void Start()
     {
+        _UI.Init();
+
         GameplayScript script = new DefaultScript()
         {
+            Main = this,
             UI = _UI,
             Timers = _timersService,
             Resources = _resourcesService,
-            IsPaused = () => _isPaused
+            IsPaused = () => _paused,
         };
         StartCoroutine(MainRoutine(script));
     }
 
-    private void OnEnable() => _isPaused = false;
-    private void OnDisable() => _isPaused = true;
+    private void OnDestroy() => SinglePool.Instance.Clear();
+    private void OnEnable() => _paused = false;
+    private void OnDisable() => _paused = true;
 
     private void Update()
     {
-        if (_isPaused) return;
+        if (_paused) return;
 
         _timersService.Tick();
     }
 
     private IEnumerator MainRoutine(GameplayScript script)
     {
-        script.Assemble();
-
-        _UI.SetStartScreenScreen();
-        yield return PausedCoroutinesExtension.PausedWhile(() => Input.anyKeyDown, () => _isPaused);
-        _UI.SetGameplayScreen();
+        _UI.SetState("StartLabel");
+        yield return PausedCoroutinesExtension.PausedUntil(() => Input.anyKeyDown, () => _paused);
+        _UI.SetState("ResourcesMenuView", "ButtonMenuView", "TimersMenuView");
         yield return script.Script();
-        yield return PausedCoroutinesExtension.PausedUntil(() => _isGameEnded, () => _isPaused);
-        _timersService.StopAll();
+    }
+
+    public ObservableProperty<int> NewResource(string name, int value)
+    {
+        ObservableProperty<int> resource = _resourcesService.Define(name, value);
+        CounterView wheatText = _UI.Get<CounterMenuView>().Draw(name);
+        resource.Bind(wheatText.Display);
+        return resource;
+    }
+
+    public void NewTimer(string displayText, float delay, Action<TimerData> onEnd, Action<TimerData> onTick = null,
+        bool repeat = false, bool reverse = false)
+    {
+        if (_timersService.Contains(displayText)) return;
+        var timersMenu = _UI.Get<TimersMenuView>();
+        TimerView timerView = timersMenu.Draw(displayText, reverse);
+        TimerData timerData = _timersService.Run(displayText, delay, repeat ? onEnd : onEnd + (_ => timersMenu.Remove(timerView)),
+            onTick + timerView.Display, repeat);
+    }
+
+    public void NewButton(string displayText, UnityAction onClick)
+    {
+        Button button = _UI.Get<ButtonMenuView>().Draw(displayText, onClick);
     }
 }

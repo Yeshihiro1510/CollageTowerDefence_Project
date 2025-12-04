@@ -3,9 +3,9 @@ using UnityEngine;
 
 public static class SpriteUtil
 {
-    public static Sprite GetSpriteFromTexture(string texturePath, string spriteName)
+    public static Sprite GetSpriteFromTexture(this string path, string spriteName)
     {
-        var sprites = Resources.LoadAll<Sprite>(texturePath);
+        var sprites = Resources.LoadAll<Sprite>(path);
         return sprites.FirstOrDefault(s => s.name == spriteName);
     }
 }

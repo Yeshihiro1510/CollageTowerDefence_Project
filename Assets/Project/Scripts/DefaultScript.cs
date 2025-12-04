@@ -2,42 +2,20 @@ using System.Collections;
 
 public class DefaultScript : GameplayScript
 {
-    private Observable<int> wheat;
-    private Observable<int> villagers;
-    private Observable<int> soldiers;
-    
-    public override void Assemble()
-    {
-        Resource("Wheat", 10, out wheat);
-        Resource("Villagers", 3, out villagers);
-        Resource("Soldiers", 1, out soldiers);
-        DrawButton("Hire villager").OnClick(VillagerHire);
-        DrawButton("Hire soldier").OnClick(SoldierHire);
-    }
-
     public override IEnumerator Script()
     {
-        Timers.Start("Wheat incomes", 3, () =>
-        {
-            wheat.Value += villagers.Value * 1;
-        }, true);
-        Timers.Start("Soldiers support cost", 5, () =>
-        {
-            wheat.Value -= soldiers.Value * 2;
-        }, true);
-        
-        
+        var Wheat = Main.NewResource("Wheat", 10);
+        var Villagers = Main.NewResource("Villagers", 3);
+        var Soldiers = Main.NewResource("Soldiers", 1);
 
-        yield return null;
-    }
+        Main.NewTimer("Wheat incomes", 3, _ => Wheat.Value += Villagers.Value * 1, repeat: true);
+        Main.NewTimer("Soldiers support payment", 5, _ => Wheat.Value -= Soldiers.Value * 2, repeat: true);
 
-    private void VillagerHire()
-    {
-        Timers.Start("Villager hire", 5, () => villagers.Value++);
-    }
+        Main.NewButton("Hire villagers",
+            () => Main.NewTimer("Villagers hiring", 7, _ => Villagers.Value++));
+        Main.NewButton("Hire soldiers", 
+            () => Main.NewTimer("Soldiers hiring", 15, _ => Soldiers.Value++));
 
-    private void SoldierHire()
-    {
-        Timers.Start("Soldier hire", 10, () => soldiers.Value++);
+        yield break;
     }
 }

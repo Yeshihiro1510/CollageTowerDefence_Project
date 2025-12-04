@@ -4,9 +4,9 @@ using UnityEngine;
 
 public static class PausedCoroutinesExtension
 {
-    public static IEnumerator PausedWhile(Func<bool> evaluatesToTrue, Func<bool> pause)
+    public static IEnumerator PausedWhile(Func<bool> evaluatesToFalse, Func<bool> pause)
     {
-        while (!evaluatesToTrue.Invoke())
+        while (evaluatesToFalse.Invoke())
             yield return new WaitWhile(pause);
     }
     

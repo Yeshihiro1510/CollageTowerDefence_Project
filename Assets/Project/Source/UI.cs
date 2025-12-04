@@ -1,25 +1,40 @@
+using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
+using Yeshi_Pool;
 
 public class UI : MonoBehaviour
 {
-    [SerializeField] private ResourcesMenuView _resourcesMenuView;
-    [SerializeField] private ButtonMenuView _buttonMenuView;
-    [SerializeField] private GameObject _startLabel;
+    private RectPoolable[] _elements;
+    private RectPoolable _cache;
 
-    public ButtonMenuView ButtonMenuView => _buttonMenuView;
-    public ResourcesMenuView ResourcesMenuView => _resourcesMenuView;
-
-    public void SetStartScreenScreen()
+    public void Init()
     {
-        _startLabel.SetActive(true);
-        _buttonMenuView.gameObject.SetActive(false);
-        _resourcesMenuView.gameObject.SetActive(false);
+        _elements = GetComponentsInChildren<RectPoolable>();
     }
 
-    public void SetGameplayScreen()
+    public void SetState(params string[] names)
     {
-        _startLabel.SetActive(false);
-        _buttonMenuView.gameObject.SetActive(true);
-        _resourcesMenuView.gameObject.SetActive(true);
+        foreach (var e in _elements)
+        {
+            if (names.Contains(e.name)) e.TurnOn();
+            else e.TurnOff();
+        }
+    }
+
+    public T Get<T>() where T : RectPoolable, new()
+    {
+        if (_cache is T result) return result;
+        var obj = _elements.First(e => e is T) as T;
+        _cache = obj;
+        return obj;
+    }
+
+    public T Get<T>(string elementName) where T : RectPoolable, new()
+    {
+        if (_cache.name == elementName && _cache is T result) return result;
+        var obj = _elements.First(e => e is T && e.name == elementName) as T;
+        _cache = obj;
+        return obj;
     }
 }
