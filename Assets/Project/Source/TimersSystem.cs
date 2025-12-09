@@ -1,16 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using UnityEngine;
 
 public class TimersSystem
 {
     private readonly List<TimerData> _timers = new();
+    private float _time;
 
-    public void Tick()
+    public void Tick(float time)
     {
         if (_timers.Count == 0) return;
-        var time = Time.time;
+        _time = time;
 
         for (var i = 0; i < _timers.Count; i++)
         {
@@ -21,7 +21,7 @@ public class TimersSystem
 
             if (time >= t.startTime + t.delay)
             {
-                t.onEnd.Invoke(t);
+                t.onEnd?.Invoke(t);
 
                 if (t.repeat) _timers[i] = new TimerData(t.name, time, t.delay, t.onEnd, t.onTick, true);
                 else _timers.RemoveAt(i);
@@ -32,7 +32,7 @@ public class TimersSystem
     public TimerData Run(string name, float delay, Action<TimerData> onEnd, Action<TimerData> onTick,
         bool repeat = false)
     {
-        TimerData timer = new TimerData(name, Time.time, delay, onEnd, onTick, repeat);
+        TimerData timer = new TimerData(name, _time, delay, onEnd, onTick, repeat);
         _timers.Add(timer);
         return timer;
     }
@@ -63,4 +63,8 @@ public struct TimerData
     public Action<TimerData> onEnd;
     public Action<TimerData> onTick;
     public bool repeat;
+    
+    public float remainingTime => delay - (currentTime - startTime);
+    public float timerLifeTime => currentTime - startTime;
+    public float progress => timerLifeTime.normalize(delay);
 }

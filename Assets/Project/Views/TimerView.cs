@@ -18,6 +18,6 @@ public class TimerView : RectPoolable
 
     public void Display(TimerData timer)
     {
-        _image.fillAmount = (timer.currentTime - timer.startTime).Normalize(timer.delay, _reverse);
+        _image.fillAmount = (timer.currentTime - timer.startTime).normalize(timer.delay, _reverse);
     }
 }
