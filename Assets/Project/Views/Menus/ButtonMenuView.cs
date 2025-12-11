@@ -1,22 +1,19 @@
 using System.Collections.Generic;
-using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
-using UnityEngine.UI;
 using Yeshi_Pool;
 
 public class ButtonMenuView : RectPoolable
 {
-    [SerializeField] private Button _prefab;
+    [SerializeField] private ButtonView _prefab;
     
-    private readonly List<Button> _buttons = new List<Button>();
+    private readonly List<ButtonView> _buttons = new List<ButtonView>();
 
-    public Button Draw(string displayText, UnityAction onClick)
+    public ButtonView Draw(string displayText, UnityAction onClick)
     {
-        var button = Instantiate(_prefab, transform);
-        var ugui = button.GetComponentInChildren<TextMeshProUGUI>();
-        if (ugui != null) ugui.text = displayText;
-        button.onClick.AddListener(onClick);
+        var button = SinglePool.Instance.Get(_prefab);
+        button.Init(displayText, onClick);
+        button.transform.SetParent(transform);
         _buttons.Add(button);
         return button;
     }

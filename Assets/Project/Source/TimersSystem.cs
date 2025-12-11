@@ -38,7 +38,7 @@ public class TimersSystem
     }
 
     public void Stop(string name) => _timers.RemoveAll(t => t.name == name);
-    public void StopAll() => _timers.Clear();
+    public void Clear() => _timers.Clear();
     public bool Contains(string name) => _timers.Any(t => t.name == name);
 }
 

@@ -31,7 +31,7 @@ public class UI : MonoBehaviour
 
     public T Get<T>(string elementName) where T : RectPoolable, new()
     {
-        if (_cache.name == elementName && _cache is T result) return result;
+        if (_cache?.name == elementName && _cache is T result) return result;
         var obj = _elements.First(e => e is T && e.name == elementName) as T;
         _cache = obj;
         return obj;

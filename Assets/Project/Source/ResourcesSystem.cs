@@ -14,4 +14,5 @@ public class ResourcesSystem
     public ObservableProperty<int> Get(string name) => _observables[name];
     public (string, ObservableProperty<int>)[] GetArray() => _observables.Select(x => (x.Key, x.Value)).ToArray();
     public (string, int)[] Serialize() => _observables.Select(o => (o.Key, o.Value.Value)).ToArray();
+    public void Clear() => _observables.Clear();
 }

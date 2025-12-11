@@ -1,10 +1,11 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.SceneManagement;
 using UnityEngine.Splines;
-using UnityEngine.UI;
+using Yeshi_Pool;
 
 public class Main : MonoBehaviour
 {
@@ -17,28 +18,25 @@ public class Main : MonoBehaviour
     private readonly ResourcesSystem _resourcesService = new ResourcesSystem();
     private readonly TimersSystem _timersService = new TimersSystem();
 
-    private float _time = 0f;
-    private float _timeScale = 1f;
-    private float _deltaTime = 0f;
-    private bool _paused = false;
+    public float Time { get; private set; }
+    public float TimeScale { get; private set; } = 1f;
+    public float DeltaTime { get; private set; }
+    public bool Pause { get; set; }
+    public int Enemies => _enemyViews.Count;
+
+    private readonly List<RectPoolable> _gameViews = new List<RectPoolable>();
+    private readonly List<EnemyView> _enemyViews = new List<EnemyView>();
+
+    private Coroutine _gameRoutine;
 
     private void Start()
     {
         _UI.Init();
-
-        GameplayScript script = new DefaultScript()
-        {
-            Main = this,
-            UI = _UI,
-            Timers = _timersService,
-            Resources = _resourcesService,
-            IsPaused = () => _paused,
-        };
-        StartCoroutine(MainRoutine(script));
+        StartCoroutine(StartRoutine());
     }
 
-    private void OnEnable() => _paused = false;
-    private void OnDisable() => _paused = true;
+    private void OnEnable() => Pause = false;
+    private void OnDisable() => Pause = true;
 
     private void Update()
     {
@@ -46,26 +44,63 @@ public class Main : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.R)) SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
 #endif
 
-        if (_paused) return;
-        _deltaTime = Time.deltaTime * _timeScale;
-        _time += _deltaTime;
+        if (Pause) return;
+        DeltaTime = UnityEngine.Time.deltaTime * TimeScale;
+        Time += DeltaTime;
 
-        _timersService.Tick(_time);
+        _timersService.Tick(Time);
     }
 
-    private IEnumerator MainRoutine(GameplayScript script)
+    private IEnumerator StartRoutine()
     {
+        yield return WarnForSecondsRoutine("Welcome!", 3);
+        yield return MainMenuRoutine();
+    }
+
+    private IEnumerator MainMenuRoutine()
+    {
+        Pause = false;
         _UI.SetState("StartLabel");
-        yield return PausedCoroutinesExtension.PausedUntil(() => Input.anyKeyDown, () => _paused);
+        yield return WaitUntil(() => Input.anyKeyDown);
+        LoadGame(new DefaultScript { Game = this });
+    }
+
+    private IEnumerator GameRoutine(GameplayScript script)
+    {
+        Pause = false;
         _UI.SetState("ResourcesMenuView", "ButtonMenuView", "TimersMenuView");
         yield return script.Script();
+    }
+
+    public void LoadGame(GameplayScript script) => _gameRoutine ??= StartCoroutine(GameRoutine(script));
+    public void LoadMenu() => StartCoroutine(MainMenuRoutine());
+
+    public void StopGame()
+    {
+        if (_gameRoutine != null)
+        {
+            Pause = true;
+            StopCoroutine(_gameRoutine);
+            ClearGame();
+        }
+    }
+
+    public void ClearGame()
+    {
+        _timersService.Clear();
+        _resourcesService.Clear();
+        foreach (var v in _gameViews) v.Release();
+        foreach (var v in _enemyViews) v.Release();
+        _gameViews.Clear();
+        _enemyViews.Clear();
     }
 
     public ObservableProperty<int> NewResource(string name, int value)
     {
         ObservableProperty<int> resource = _resourcesService.Define(name, value);
-        CounterView wheatText = _UI.Get<CounterMenuView>().Draw(name);
-        resource.Bind(wheatText.Display);
+        CounterView view = _UI.Get<CounterMenuView>().Draw(name);
+        _gameViews.Add(view);
+        resource.Bind(view.Display);
         return resource;
     }
 
@@ -75,31 +110,89 @@ public class Main : MonoBehaviour
         if (_timersService.Contains(displayText)) return;
         var timersMenu = _UI.Get<TimersMenuView>();
         TimerView timerView = timersMenu.Draw(displayText, reverse);
-        TimerData timerData = _timersService.Run(displayText, delay,
+        _timersService.Run(
+            displayText,
+            delay,
             repeat ? onEnd : onEnd + (_ => timersMenu.Remove(timerView)),
             onTick + timerView.Display, repeat);
+        _gameViews.Add(timerView);
     }
 
     public void NewButton(string displayText, UnityAction onClick)
     {
-        Button button = _UI.Get<ButtonMenuView>().Draw(displayText, onClick);
+        var view = _UI.Get<ButtonMenuView>().Draw(displayText, onClick);
+        _gameViews.Add(view);
     }
 
-    public EnemyView NewEnemy(float delay, Action<EnemyView> onEnd, Action<EnemyView> onTick, bool repeat = false)
+    public EnemyView NewEnemy(float delay, Action<EnemyView> onEnd = default, Action<EnemyView> onTick = default)
     {
         var enemy = SinglePool.Instance.Get(_enemyPrefab);
         enemy.transform.position = _enemySpawn.position;
+        _enemyViews.Add(enemy);
 
         _timersService.Run("Enemy steps",
             delay,
-            t => onEnd?.Invoke(enemy),
+            t =>
+            {
+                onEnd?.Invoke(enemy);
+                enemy.Release();
+                _enemyViews.Remove(enemy);
+            },
             t =>
             {
                 onTick?.Invoke(enemy);
                 enemy.transform.position = Vector3.Lerp(_enemySpawn.position, _target.position, t.progress);
-            },
-            repeat);
+            });
 
         return enemy;
+    }
+
+    public IEnumerator WaitUntil(Func<bool> evaluatesToTrue)
+    {
+        while (!evaluatesToTrue.Invoke())
+        {
+            yield return new WaitWhile(() => Pause);
+        }
+    }
+
+    public IEnumerator WaitForSeconds(float delay)
+    {
+        for (float i = 0; i <= delay; i += UnityEngine.Time.deltaTime)
+        {
+            yield return new WaitWhile(() => Pause);
+        }
+    }
+
+    public void WarnForSeconds(string message, float duration, Action onEnd = default)
+    {
+        BlockRaycasts(true);
+        StartCoroutine(_UI.Get<GameplayWarnView>().DisplayForSec(message, duration, onEnd));
+        BlockRaycasts(false);
+    }
+
+    public void WarnWhile(string message, float textDuration, Func<bool> evaluatesToTrue, Action onEnd = default)
+    {
+        BlockRaycasts(true);
+        StartCoroutine(_UI.Get<GameplayWarnView>().DisplayWhile(message, textDuration, evaluatesToTrue, onEnd));
+        BlockRaycasts(false);
+    }
+
+    public IEnumerator WarnForSecondsRoutine(string message, float duration)
+    {
+        BlockRaycasts(true);
+        yield return _UI.Get<GameplayWarnView>().DisplayForSec(message, duration);
+        BlockRaycasts(false);
+    }
+
+    public IEnumerator WarnWhileRoutine(string message, float textDuration, Func<bool> evaluatesToTrue)
+    {
+        BlockRaycasts(true);
+        yield return _UI.Get<GameplayWarnView>().DisplayWhile(message, textDuration, evaluatesToTrue);
+        BlockRaycasts(false);
+    }
+
+    public void BlockRaycasts(bool block)
+    {
+        _UI.Get<RectPoolable>("RaycastBlocker").gameObject.SetActive(block);
     }
 }
