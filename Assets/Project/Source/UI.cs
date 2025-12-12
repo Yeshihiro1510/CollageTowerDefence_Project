@@ -9,7 +9,7 @@ public class UI : MonoBehaviour
 
     public void Init()
     {
-        _elements = GetComponentsInChildren<RectPoolable>();
+        _elements = GetComponentsInChildren<RectPoolable>(true);
     }
 
     public void SetState(params string[] names)

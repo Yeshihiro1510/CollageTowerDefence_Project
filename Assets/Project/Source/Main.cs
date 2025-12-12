@@ -1,11 +1,20 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.SceneManagement;
 using UnityEngine.Splines;
 using Yeshi_Pool;
+
+public static class Timings
+{
+    public const float WELCOME = 5;
+    public const float WIN_FAIL = 2.3f;
+    public const float STAGES = 3;
+    public const float SYSTEM = 2.3f;
+}
 
 public class Main : MonoBehaviour
 {
@@ -14,6 +23,7 @@ public class Main : MonoBehaviour
     [SerializeField] private EnemyView _enemyPrefab;
     [SerializeField] private Transform _enemySpawn;
     [SerializeField] private Transform _target;
+    [SerializeField] private TMP_Text _debugText;
 
     private readonly ResourcesSystem _resourcesService = new ResourcesSystem();
     private readonly TimersSystem _timersService = new TimersSystem();
@@ -22,17 +32,16 @@ public class Main : MonoBehaviour
     public float TimeScale { get; private set; } = 1f;
     public float DeltaTime { get; private set; }
     public bool Pause { get; set; }
-    public int Enemies => _enemyViews.Count;
 
     private readonly List<RectPoolable> _gameViews = new List<RectPoolable>();
     private readonly List<EnemyView> _enemyViews = new List<EnemyView>();
 
-    private Coroutine _gameRoutine;
+    public int Enemies => _enemyViews.Count;
 
     private void Start()
     {
         _UI.Init();
-        StartCoroutine(StartRoutine());
+        StartCoroutine(MainRoutine(new DefaultScript { Game = this }));
     }
 
     private void OnEnable() => Pause = false;
@@ -42,6 +51,16 @@ public class Main : MonoBehaviour
     {
 #if UNITY_EDITOR
         if (Input.GetKeyDown(KeyCode.R)) SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        if (Input.GetKeyDown(KeyCode.Alpha1)) TimeScale = 1;
+        if (Input.GetKeyDown(KeyCode.Alpha2)) TimeScale = 2;
+        if (Input.GetKeyDown(KeyCode.Alpha3)) TimeScale = 3;
+        if (Input.GetKeyDown(KeyCode.Alpha4)) TimeScale = 4;
+        if (Input.GetKeyDown(KeyCode.Alpha5)) TimeScale = 5;
+        _debugText.text = $"R - Reload\n" +
+                          $"1, 2, 3, 4, 5 - Timescale\n" +
+                          $"Time: {Mathf.Floor(Time)}\n" +
+                          $"Timescale: {TimeScale}\n" +
+                          $"Pause: {Pause}\n";
 #endif
 
         if (Pause) return;
@@ -51,36 +70,17 @@ public class Main : MonoBehaviour
         _timersService.Tick(Time);
     }
 
-    private IEnumerator StartRoutine()
+    private IEnumerator MainRoutine(GameplayScript script)
     {
-        yield return WarnForSecondsRoutine("Welcome!", 3);
-        yield return MainMenuRoutine();
-    }
-
-    private IEnumerator MainMenuRoutine()
-    {
-        Pause = false;
         _UI.SetState("StartLabel");
-        yield return WaitUntil(() => Input.anyKeyDown);
-        LoadGame(new DefaultScript { Game = this });
-    }
-
-    private IEnumerator GameRoutine(GameplayScript script)
-    {
-        Pause = false;
+        yield return WaitUntil(() => Input.GetMouseButtonDown(0));
         _UI.SetState("ResourcesMenuView", "ButtonMenuView", "TimersMenuView");
-        yield return script.Script();
-    }
-
-    public void LoadGame(GameplayScript script) => _gameRoutine ??= StartCoroutine(GameRoutine(script));
-    public void LoadMenu() => StartCoroutine(MainMenuRoutine());
-
-    public void StopGame()
-    {
-        if (_gameRoutine != null)
+        yield return WarnForSecondsRoutine("Welcome this game!", Timings.WELCOME / TimeScale);
+        while (true)
         {
-            Pause = true;
-            StopCoroutine(_gameRoutine);
+            yield return script.Script();
+            yield return WarnWhileRoutine("Tap to repeat", Timings.SYSTEM / TimeScale,
+                () => Input.GetMouseButtonDown(0));
             ClearGame();
         }
     }

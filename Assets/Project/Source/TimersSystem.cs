@@ -9,8 +9,8 @@ public class TimersSystem
 
     public void Tick(float time)
     {
-        if (_timers.Count == 0) return;
         _time = time;
+        if (_timers.Count == 0) return;
 
         for (var i = 0; i < _timers.Count; i++)
         {

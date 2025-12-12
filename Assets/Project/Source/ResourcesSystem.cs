@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using UnityEngine;
 
 public class ResourcesSystem
 {
@@ -7,7 +8,7 @@ public class ResourcesSystem
 
     public ObservableProperty<int> Define(string name, int value)
     {
-        _observables[name] = new ObservableProperty<int>(value);
+        _observables[name] = new ObservableProperty<int>(value, setter: Mathf.Abs);
         return _observables[name];
     }
 
